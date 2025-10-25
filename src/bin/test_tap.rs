@@ -1,6 +1,6 @@
-use rust_tcpip::device::*;
 use rust_tcpip::ethernet::EthernetFrame;
-use tracing::info;
+use rust_tcpip::{arp::ArpPacket, device::*};
+use tracing::{debug, info};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志
@@ -17,7 +17,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         let read_size = device.recv(&mut buf)?;
-        let frame = EthernetFrame::parse(&buf[..read_size])?;
-        info!("Recv {} bytes. ether_type: 0x{:02x}, payload: {:?}", read_size, frame.ether_type, frame.payload);
+        let ethernet_frame = EthernetFrame::parse(&buf[..read_size])?;
+        debug!(
+            "Recv {} bytes. ether_type: 0x{:02x}, payload: {:?}",
+            read_size, ethernet_frame.ether_type, ethernet_frame.payload
+        );
+
+        // 解析arp包
+        if ethernet_frame.ether_type == 0x0806 {
+            let arp_packet = ArpPacket::parse(&ethernet_frame.payload);
+            info!("ARP: {:?}", arp_packet)
+        }
     }
 }
