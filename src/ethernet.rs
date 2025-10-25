@@ -2,9 +2,33 @@
 //!
 //! 负责以太网帧的解析和构造
 
-use crate::error::{Result, StackError};
+use tracing::info;
+
+use crate::{
+    arp::ArpPacket,
+    error::{Result, StackError},
+};
 
 const ETHER_MIN_BYTES: usize = 14;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+pub enum EtherType {
+    IPv4 = 0x0800,
+    ARP = 0x0806,
+    IPv6 = 0x86DD,
+}
+
+impl EtherType {
+    pub fn from_u16(value: u16) -> Option<Self> {
+        match value {
+            0x0800 => Some(EtherType::IPv4),
+            0x0806 => Some(EtherType::ARP),
+            0x86DD => Some(EtherType::IPv6),
+            _ => None,
+        }
+    }
+}
 
 /// 以太网帧结构
 #[derive(Debug)]
@@ -16,6 +40,9 @@ pub struct EthernetFrame {
 }
 
 impl EthernetFrame {
+    pub fn get_ether_type(&self) -> Option<EtherType> {
+        EtherType::from_u16(self.ether_type)
+    }
     pub fn parse(data: &[u8]) -> Result<Self> {
         // 以太网最小数据帧: 6 + 6 + 2 = 14 bytes
         if data.len() < ETHER_MIN_BYTES {
@@ -41,6 +68,25 @@ impl EthernetFrame {
             ether_type,
             payload,
         })
+    }
+
+    pub fn handle_frame(&self) -> Result<()> {
+        match self.get_ether_type() {
+            Some(EtherType::ARP) => {
+                let arp_packet = ArpPacket::parse(&self.payload);
+                info!("ARP: {:?}", arp_packet)
+            }
+            Some(EtherType::IPv4) => {
+                info!("Ipv4 packet not impl");
+            }
+            Some(EtherType::IPv6) => {
+                info!("Ipv4 packet not impl");
+            }
+            None => {
+                info!("Unknown packet!")
+            }
+        }
+        Ok(())
     }
 }
 
