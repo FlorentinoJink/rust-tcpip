@@ -7,9 +7,32 @@ use std::net::Ipv4Addr;
 const ARP_PACKET_LEN: usize = 28;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
 pub enum ArpOperation {
-    Request,
-    Reply,
+    Request = 1,
+    Reply = 2,
+    RArpRequest = 3,
+    RArpReply = 4,
+}
+
+impl ArpOperation {
+    pub fn from_u16(value: u16) -> Option<Self> {
+        match value {
+            1 => Some(ArpOperation::Request),
+            2 => Some(ArpOperation::Reply),
+            3 => Some(ArpOperation::RArpRequest),
+            4 => Some(ArpOperation::RArpReply),
+            _ => None,
+        }
+    }
+    pub fn to_u16(arp_operation: ArpOperation) -> u16 {
+        match arp_operation {
+            ArpOperation::Request => 1,
+            ArpOperation::Reply => 2,
+            ArpOperation::RArpRequest => 3,
+            ArpOperation::RArpReply => 4,
+        }
+    }
 }
 
 /// ARP 数据包结构
@@ -27,6 +50,7 @@ pub struct ArpPacket {
 }
 
 impl ArpPacket {
+    // 解析Arp请求
     pub fn parse(data: &[u8]) -> Result<Self> {
         if data.len() < ARP_PACKET_LEN {
             return Err(StackError::InvalidPacket(String::from(
@@ -61,4 +85,51 @@ impl ArpPacket {
         })
     }
 
+    // 构建Arp请求， Arp请求的目的是为了得到目标ip
+    pub fn build_request(
+        sender_mac: [u8; 6],
+        sender_ip: std::net::Ipv4Addr,
+        target_ip: std::net::Ipv4Addr,
+    ) -> Self {
+        Self {
+            hardware_type: 1,      // Ethernet
+            protocol_type: 0x0800, // ipv4
+            hardware_len: 6,
+            procotol_len: 4,
+            operation: 1, // 请求
+            sender_mac,
+            sender_ip,
+            target_mac: [0u8; 6], // 发起ARP请求的时候不知道目标的mac
+            target_ip,
+        }
+    }
+
+    // 构建Arp响应， Arp响应的目的是响应自己的mac给发送方
+    pub fn build_reply(request: &ArpPacket, our_mac: [u8; 6]) -> Self {
+        Self {
+            hardware_type: 1,      // Ethernet
+            protocol_type: 0x0800, // ipv4
+            hardware_len: 6,
+            procotol_len: 4,
+            operation: 2,                   // Arp响应
+            sender_mac: our_mac,            // 响应给请求者自己的mac
+            sender_ip: request.target_ip,   // Arp请求的目标ip就是 Arp回复的发送ip
+            target_mac: request.sender_mac, // 响应的目标是发送方
+            target_ip: request.sender_ip,   // Arp请求的发送ip就是 Arp回复的目标ip
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(ARP_PACKET_LEN);
+        bytes.extend_from_slice(&self.hardware_type.to_be_bytes());
+        bytes.extend_from_slice(&self.protocol_type.to_be_bytes());
+        bytes.push(self.hardware_len);
+        bytes.push(self.procotol_len);
+        bytes.extend_from_slice(&self.operation.to_be_bytes());
+        bytes.extend_from_slice(&self.sender_mac);
+        bytes.extend_from_slice(&self.sender_ip.octets());
+        bytes.extend_from_slice(&self.target_mac);
+        bytes.extend_from_slice(&self.target_ip.octets());
+        bytes
+    }
 }

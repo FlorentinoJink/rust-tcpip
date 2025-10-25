@@ -18,6 +18,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let read_size = device.recv(&mut buf)?;
         let ethernet_frame = EthernetFrame::parse(&buf[..read_size])?;
-        ethernet_frame.handle_frame()?;
+        let ourip = std::net::Ipv4Addr::new(192, 168, 20, 1);
+        let ourmac: [u8; 6] = [66, 66, 66, 66, 66, 66];
+
+        if let Some(response) = ethernet_frame.handle_frame(ourip, ourmac)? {
+            device.send(&response)?;
+            info!("Sent response");
+        }
     }
 }

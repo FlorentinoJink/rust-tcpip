@@ -5,7 +5,7 @@
 use tracing::info;
 
 use crate::{
-    arp::ArpPacket,
+    arp::{ArpOperation, ArpPacket},
     error::{Result, StackError},
 };
 
@@ -26,6 +26,13 @@ impl EtherType {
             0x0806 => Some(EtherType::ARP),
             0x86DD => Some(EtherType::IPv6),
             _ => None,
+        }
+    }
+    pub fn to_u16(ether_type: EtherType) -> u16 {
+        match ether_type {
+            EtherType::ARP => 0x0806,
+            EtherType::IPv4 => 0x0800,
+            EtherType::IPv6 => 0x86DD,
         }
     }
 }
@@ -70,23 +77,66 @@ impl EthernetFrame {
         })
     }
 
-    pub fn handle_frame(&self) -> Result<()> {
+    pub fn handle_frame(
+        &self,
+        our_ip: std::net::Ipv4Addr,
+        our_mac: [u8; 6],
+    ) -> Result<Option<Vec<u8>>> {
         match self.get_ether_type() {
             Some(EtherType::ARP) => {
-                let arp_packet = ArpPacket::parse(&self.payload);
-                info!("ARP: {:?}", arp_packet)
+                // 1. 收到并解析Arp请求
+                let arp_packet = ArpPacket::parse(&self.payload)?;
+                info!("ARP: {:?}", arp_packet);
+
+                // 2.过滤Arp请求，只处理请求类型是Arp Request，且 Arp请求的目标ip是我们的ip
+                let arpop = ArpOperation::from_u16(arp_packet.operation);
+                if arpop == Some(ArpOperation::Request) && arp_packet.target_ip == our_ip {
+                    let reply_packet = ArpPacket::build_reply(&arp_packet, our_mac);
+                    let reply_bytes = reply_packet.to_bytes();
+                    let eth_frame = Self::build(
+                        arp_packet.sender_mac,
+                        our_mac,
+                        EtherType::ARP as u16,
+                        reply_bytes,
+                    );
+
+                    Ok(Some(eth_frame.to_bytes()))
+                } else {
+                    info!("Arp not for us, ignoring");
+                    Ok(None)
+                }
             }
             Some(EtherType::IPv4) => {
                 info!("Ipv4 packet not impl");
+                Ok(None)
             }
             Some(EtherType::IPv6) => {
                 info!("Ipv4 packet not impl");
+                Ok(None)
             }
             None => {
-                info!("Unknown packet!")
+                info!("Unknown packet!");
+                Ok(None)
             }
         }
-        Ok(())
+    }
+
+    pub fn build(dst_mac: [u8; 6], src_mac: [u8; 6], ether_type: u16, payload: Vec<u8>) -> Self {
+        Self {
+            dst_mac,
+            src_mac,
+            ether_type,
+            payload,
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(self.payload.len());
+        bytes.extend_from_slice(&self.dst_mac);
+        bytes.extend_from_slice(&self.src_mac);
+        bytes.extend_from_slice(&self.ether_type.to_be_bytes());
+        bytes.extend_from_slice(&self.payload);
+        bytes
     }
 }
 
