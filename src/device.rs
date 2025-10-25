@@ -47,18 +47,19 @@ pub struct TapDevice {
 
 impl TapDevice {
     pub fn new(name: &str) -> Result<Self> {
-        let iface = Iface::new(name, Mode::Tap)?;
+        // new会附带PI头 PacketInfo 改用 without_packet_info
+        let iface = Iface::without_packet_info(name, Mode::Tap)?;
         Ok(Self { iface })
     }
     pub fn set_ip(&mut self, ip: std::net::Ipv4Addr, netmask: std::net::Ipv4Addr) -> Result<()> {
         let iface_name = self.iface.name();
 
         // 1. 配置ip命令
-        // ip addr 192.168.10.1/24 dev tap1
+        // ip addr add 192.168.10.1/24 dev tap0
         let output = Command::new("ip")
             .args(&[
-                "ip",
                 "addr",
+                "add",
                 &format!("{}/{}", ip, netmask_to_prefix(netmask)),
                 "dev",
                 iface_name,
@@ -68,7 +69,7 @@ impl TapDevice {
         if !output.status.success() {
             return Err(StackError::Io(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "Failed to set IP address",
+                format!("Failed to set IP address"),
             )));
         }
 

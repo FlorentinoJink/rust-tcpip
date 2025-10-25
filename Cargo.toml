@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 tracing = "0.1.40"
-tracing-subscriber = {version = "0.3.20", feature = ["env-filter", "std","fmt"]}
+tracing-subscriber = "0.3.20"
 
 thiserror = "2.0.17"
 anyhow = "1.0.1"
