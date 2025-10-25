@@ -14,10 +14,10 @@ pub enum StackError {
     InvalidPacket(String),           // 无效的数据包，格式不正确
     
     #[error("Checksum mismatch")]
-    ChecksumMismatch,                // 校验和不匹配
+    ChecksumMismatch(String),                // 校验和不匹配
     
     #[error("Connection failed")]
-    ConnectionFailed,                // 连接失败
+    ConnectionFailed(String),                // 连接失败
 }
 
 /// Result 类型别名，方便使用

@@ -5,6 +5,7 @@ pub mod icmp;
 pub mod ip;
 pub mod socket;
 pub mod udp;
+pub mod device;
 
 pub fn init_tracing() {
     use tracing_subscriber::fmt;
