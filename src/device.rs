@@ -1,4 +1,5 @@
 use crate::error::{Result, StackError};
+use std::net::Ipv4Addr;
 use std::process::Command;
 use tracing::debug;
 use tun_tap::{Iface, Mode};
@@ -10,18 +11,18 @@ pub trait NetworkDevice {
 
 pub struct NetworkInterface {
     pub device: Box<dyn NetworkDevice>,
-    pub ip: std::net::Ipv4Addr,
+    pub ip: Ipv4Addr,
     pub mac: [u8; 6],
-    pub netmask: std::net::Ipv4Addr,
+    pub netmask: Ipv4Addr,
     pub mtu: usize,
 }
 
 impl NetworkInterface {
     pub fn new(
         device: Box<dyn NetworkDevice>,
-        ip: std::net::Ipv4Addr,
+        ip: Ipv4Addr,
         mac: [u8; 6],
-        netmask: std::net::Ipv4Addr,
+        netmask: Ipv4Addr,
         mtu: usize,
     ) -> Self {
         Self {
@@ -51,7 +52,7 @@ impl TapDevice {
         let iface = Iface::without_packet_info(name, Mode::Tap)?;
         Ok(Self { iface })
     }
-    pub fn set_ip(&mut self, ip: std::net::Ipv4Addr, netmask: std::net::Ipv4Addr) -> Result<()> {
+    pub fn set_ip(&mut self, ip: Ipv4Addr, netmask: Ipv4Addr) -> Result<()> {
         let iface_name = self.iface.name();
 
         // 1. 配置ip命令
@@ -83,7 +84,7 @@ impl TapDevice {
 }
 
 // 辅助函数：将子网掩码转换为前缀长度
-fn netmask_to_prefix(netmask: std::net::Ipv4Addr) -> u8 {
+fn netmask_to_prefix(netmask: Ipv4Addr) -> u8 {
     let octets = netmask.octets();
     let mask = u32::from_be_bytes(octets);
     mask.count_ones() as u8
@@ -102,7 +103,7 @@ impl NetworkDevice for TapDevice {
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
+    use Ipv4Addr;
 
     use super::*;
     #[test]

@@ -2,12 +2,7 @@
 //!
 //! 负责以太网帧的解析和构造
 
-use tracing::info;
-
-use crate::{
-    arp::{ArpOperation, ArpPacket},
-    error::{Result, StackError},
-};
+use crate::error::{Result, StackError};
 
 const ETHER_MIN_BYTES: usize = 14;
 
@@ -35,6 +30,14 @@ impl EtherType {
             EtherType::IPv6 => 0x86DD,
         }
     }
+}
+
+#[derive(Debug)]
+pub enum FramePayload {
+    Arp(Vec<u8>),
+    Ipv4(Vec<u8>),
+    Ipv6(Vec<u8>),
+    Unknown,
 }
 
 /// 以太网帧结构
@@ -77,47 +80,12 @@ impl EthernetFrame {
         })
     }
 
-    pub fn handle_frame(
-        &self,
-        our_ip: std::net::Ipv4Addr,
-        our_mac: [u8; 6],
-    ) -> Result<Option<Vec<u8>>> {
+    pub fn classify_payload(&self) -> FramePayload {
         match self.get_ether_type() {
-            Some(EtherType::ARP) => {
-                // 1. 收到并解析Arp请求
-                let arp_packet = ArpPacket::parse(&self.payload)?;
-                info!("ARP: {:?}", arp_packet);
-
-                // 2.过滤Arp请求，只处理请求类型是Arp Request，且 Arp请求的目标ip是我们的ip
-                let arpop = ArpOperation::from_u16(arp_packet.operation);
-                if arpop == Some(ArpOperation::Request) && arp_packet.target_ip == our_ip {
-                    let reply_packet = ArpPacket::build_reply(&arp_packet, our_mac);
-                    let reply_bytes = reply_packet.to_bytes();
-                    let eth_frame = Self::build(
-                        arp_packet.sender_mac,
-                        our_mac,
-                        EtherType::ARP as u16,
-                        reply_bytes,
-                    );
-
-                    Ok(Some(eth_frame.to_bytes()))
-                } else {
-                    info!("Arp not for us, ignoring");
-                    Ok(None)
-                }
-            }
-            Some(EtherType::IPv4) => {
-                info!("Ipv4 packet not impl");
-                Ok(None)
-            }
-            Some(EtherType::IPv6) => {
-                info!("Ipv4 packet not impl");
-                Ok(None)
-            }
-            None => {
-                info!("Unknown packet!");
-                Ok(None)
-            }
+            Some(EtherType::ARP) => FramePayload::Arp(self.payload.clone()),
+            Some(EtherType::IPv4) => FramePayload::Ipv4(self.payload.clone()),
+            Some(EtherType::IPv6) => FramePayload::Ipv6(self.payload.clone()),
+            None => FramePayload::Unknown,
         }
     }
 

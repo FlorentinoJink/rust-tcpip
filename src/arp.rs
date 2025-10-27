@@ -1,10 +1,85 @@
 //! ARP 协议实现
 //!
 //! ARP（Address Resolution Protocol）用于将 IP 地址解析为 MAC 地址
+use tracing::info;
+
 use crate::error::{Result, StackError};
+use std::collections::HashMap;
 use std::net::Ipv4Addr;
+use std::time::{Duration, Instant};
 
 const ARP_PACKET_LEN: usize = 28;
+
+pub type MacAddr = [u8; 6];
+
+#[derive(Debug)]
+pub struct ArpCache {
+    entries: HashMap<Ipv4Addr, (MacAddr, Instant)>,
+    timeout: Duration,
+}
+
+impl ArpCache {
+    pub fn new(timeout: Duration) -> Self {
+        Self {
+            entries: HashMap::new(),
+            timeout,
+        }
+    }
+
+    // 更新缓存
+    pub fn insert(&mut self, ip: Ipv4Addr, mac: MacAddr) {
+        self.entries.insert(ip, (mac, Instant::now()));
+    }
+
+    // 查找mac地址
+    pub fn loopup(&mut self, ip: &Ipv4Addr) -> Option<MacAddr> {
+        if let Some((mac, timestamp)) = self.entries.get(ip) {
+            if timestamp.elapsed() < self.timeout {
+                return Some(*mac);
+            } else {
+                self.entries.remove(ip);
+            }
+        }
+        None
+    }
+    // 清理过期缓存
+    pub fn clean_up(&mut self) {
+        self.entries
+            .retain(|_, (_, timestamp)| timestamp.elapsed() < self.timeout);
+    }
+}
+
+#[derive(Debug)]
+pub struct ArpModule {
+    cache: ArpCache,
+    our_ip: Ipv4Addr,
+    our_mac: MacAddr,
+}
+
+impl ArpModule {
+    pub fn new(our_ip: Ipv4Addr, our_mac: MacAddr) -> Self {
+        Self {
+            cache: ArpCache::new(Duration::from_secs(300)),
+            our_ip,
+            our_mac,
+        }
+    }
+
+    pub fn handle_packet(&mut self, arp: &ArpPacket) -> Option<Vec<u8>> {
+        self.cache.insert(arp.sender_ip, arp.sender_mac);
+        let arp_operation = ArpOperation::from_u16(arp.operation);
+        if arp_operation == Some(ArpOperation::Request) && arp.target_ip == self.our_ip {
+            let reply = ArpPacket::build_reply(arp, self.our_mac);
+            return Some(reply.to_bytes());
+        }
+        info!("Arp packet is not for us, skip");
+        None
+    }
+
+    pub fn resolve(&mut self, ip: Ipv4Addr) -> Option<MacAddr> {
+        self.cache.loopup(&ip)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
@@ -65,12 +140,12 @@ impl ArpPacket {
 
         let mut sender_mac = [0u8; 6];
         sender_mac.copy_from_slice(&data[8..14]);
-        let sender_ip = std::net::Ipv4Addr::new(data[14], data[15], data[16], data[17]);
+        let sender_ip = Ipv4Addr::new(data[14], data[15], data[16], data[17]);
 
         let mut target_mac = [0u8; 6];
         target_mac.copy_from_slice(&data[18..24]);
 
-        let target_ip = std::net::Ipv4Addr::new(data[24], data[25], data[26], data[27]);
+        let target_ip = Ipv4Addr::new(data[24], data[25], data[26], data[27]);
 
         Ok(Self {
             hardware_type,
@@ -86,11 +161,7 @@ impl ArpPacket {
     }
 
     // 构建Arp请求， Arp请求的目的是为了得到目标ip
-    pub fn build_request(
-        sender_mac: [u8; 6],
-        sender_ip: std::net::Ipv4Addr,
-        target_ip: std::net::Ipv4Addr,
-    ) -> Self {
+    pub fn build_request(sender_mac: [u8; 6], sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Self {
         Self {
             hardware_type: 1,      // Ethernet
             protocol_type: 0x0800, // ipv4
