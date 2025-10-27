@@ -29,14 +29,19 @@ impl ArpCache {
     // 更新缓存
     pub fn insert(&mut self, ip: Ipv4Addr, mac: MacAddr) {
         self.entries.insert(ip, (mac, Instant::now()));
+        info!("ARP cache insert: {} -> {:02x?}", ip, mac);
     }
 
     // 查找mac地址
     pub fn loopup(&mut self, ip: &Ipv4Addr) -> Option<MacAddr> {
         if let Some((mac, timestamp)) = self.entries.get(ip) {
             if timestamp.elapsed() < self.timeout {
+                // 缓存命中
+                info!("ARP cache hit: {} -> {:02x?}", ip, mac);
                 return Some(*mac);
             } else {
+                // 缓存过期
+                info!("ARP cache expired: {}", ip);
                 self.entries.remove(ip);
             }
         }
@@ -46,6 +51,11 @@ impl ArpCache {
     pub fn clean_up(&mut self) {
         self.entries
             .retain(|_, (_, timestamp)| timestamp.elapsed() < self.timeout);
+    }
+
+    // 删除缓存
+    pub fn remove(&mut self, ip: &Ipv4Addr) -> Option<MacAddr> {
+        self.entries.remove(ip).map(|(mac, _)| mac)
     }
 }
 
