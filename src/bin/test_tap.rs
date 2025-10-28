@@ -1,6 +1,7 @@
 use rust_tcpip::arp::{ArpModule, ArpPacket};
 use rust_tcpip::device::*;
 use rust_tcpip::ethernet::{EtherType, EthernetFrame, FramePayload};
+use rust_tcpip::ip::Ipv4Packet;
 use std::net::Ipv4Addr;
 use tracing::info;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,7 +13,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let our_mac = [66, 66, 66, 66, 66, 66];
     let netmask = Ipv4Addr::new(255, 255, 255, 0);
     device.set_ip(our_ip, netmask)?;
-
     info!("TAP device created and configured!");
     let mut arp_module = ArpModule::new(our_ip, our_mac);
     let mut buf = [0u8; 1500];
@@ -35,7 +35,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     info!("Send ARP reply");
                 }
             }
-            FramePayload::Ipv4(_data) => {}
+            FramePayload::Ipv4(data) => {
+                let ipv4 = Ipv4Packet::parse(&data)?;
+                info!("Recving ipv4 Packet: {:?}", ipv4);
+                info!("Recving ipv4 Packet src_addr: {}", ipv4.src_addr.to_string());
+                info!("Recving ipv4 Packet dst_addr: {}", ipv4.dst_addr.to_string());
+            }
             _ => {
                 info!("Unknown packet");
             }
