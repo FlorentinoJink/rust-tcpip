@@ -131,6 +131,18 @@ sequenceDiagram
 - ✅ `ArpModule` 请求处理
 - ✅ 自动回复 ARP 请求
 
+### 5. IP 层
+- ✅ `Ipv4Packet` 解析和构造
+- ✅ IP 校验和计算
+- ✅ TTL 处理
+- ✅ 协议字段分发
+
+### 6. ICMP 协议
+- ✅ `IcmpPacket` 解析和构造
+- ✅ Echo Request/Reply 处理
+- ✅ ICMP 校验和计算
+- ✅ 自动回复 ping 请求
+
 ### 当前可以做什么
 - ✅ 创建 TAP 虚拟网卡
 - ✅ 配置 IP 地址
@@ -138,40 +150,32 @@ sequenceDiagram
 - ✅ 接收和解析 ARP 包
 - ✅ 回复 ARP 请求
 - ✅ 维护 ARP 缓存
+- ✅ 接收和解析 IP 数据包
+- ✅ 接收和解析 ICMP 数据包
+- ✅ **响应 ping 请求（可以被 ping 通！）**
 
 ## 正在进行 🚧
 
-### ARP 缓存优化
-- 添加 tracing 日志
-- 实现 remove 方法
+### 协议栈整合
+- 将各层协议整合到统一的协议栈结构
+- 实现更完善的数据包处理流程
 
 ## 下一步计划 📋
 
-### 短期目标：实现 ICMP (Ping)
+### 短期目标：UDP 协议
 
 ```mermaid
 graph LR
-    A[当前: ARP 完成] --> B[实现 IP 层解析]
-    B --> C[实现 ICMP 解析]
-    C --> D[实现 ICMP Echo Reply]
-    D --> E[🎉 可以 ping 通!]
+    A[✅ ICMP 完成] --> B[实现 UDP 解析]
+    B --> C[实现端口管理]
+    C --> D[实现 UDP echo]
+    D --> E[🎉 UDP 通信!]
     
     style A fill:#90EE90
     style E fill:#FFD700
 ```
 
 **需要完成的任务：**
-
-1. **IP 层核心功能** (任务 5)
-   - `IpPacket` 数据结构和解析
-   - IP 校验和计算
-   - TTL 处理
-   - 数据包分发
-
-2. **ICMP 协议** (任务 6)
-   - `IcmpPacket` 解析
-   - Echo Request/Reply 处理
-   - 自动回复 ping
 
 ### 中期目标：UDP 和 TCP
 
@@ -233,23 +237,37 @@ sudo arping -I tap0 192.168.10.1
 ping 192.168.10.2  # 触发 ARP 请求
 ```
 
-### 即将可测试（完成 ICMP 后）
+### 已可测试 ✅
 ```bash
-# ping 测试
-ping 192.168.10.1
+# 启动协议栈
+sudo cargo run --bin test_tap
 
-# traceroute 测试
-traceroute 192.168.10.1
+# 在另一个终端测试 ping
+ping 192.168.10.2  # 可以 ping 通！
+```
+
+### 即将可测试（完成 UDP 后）
+```bash
+# UDP echo 测试
+nc -u 192.168.10.2 8080
 ```
 
 ## 代码统计
 
-- 总行数: ~1000 行
-- 模块数: 8 个
-- 已实现协议: ARP, 以太网
-- 待实现协议: IP, ICMP, UDP, TCP
+- 总行数: ~1200 行
+- 模块数: 9 个
+- 已实现协议: 以太网、ARP、IP、ICMP
+- 待实现协议: UDP、TCP
+
+## 里程碑 🎉
+
+- **2025-10-25**: 项目启动，完成基础设施搭建
+- **2025-10-25**: 实现以太网帧解析和 ARP 数据包解析
+- **2025-10-27**: 实现 ARP 缓存和 ARP 模块，可以响应 ARP 请求
+- **2025-10-28**: 实现 IP 数据包解析
+- **2025-11-15**: 实现 ICMP 协议，协议栈可以响应 ping 请求！
 
 ---
 
-**最后更新**: 2025-01-25
-**当前进度**: 30% (4/14 任务完成)
+**最后更新**: 2025-11-15
+**当前进度**: 43% (6/14 任务完成)

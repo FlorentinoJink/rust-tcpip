@@ -69,9 +69,10 @@ impl Ipv4Packet {
         let dst_addr = Ipv4Addr::new(data[16], data[17], data[18], data[19]);
 
         // 计算头部长度（IHL * 4 字节）
-        let _header_len = (ihl as usize) * 4;
+        let header_len = (ihl as usize) * 4;
 
-        let payload = data[22..].to_vec();
+        // payload 从头部结束后开始
+        let payload = data[header_len..].to_vec();
         Ok(Self {
             version,
             ihl,
@@ -87,5 +88,84 @@ impl Ipv4Packet {
             dst_addr,
             payload,
         })
+    }
+
+    pub fn build(
+        src_addr: Ipv4Addr,
+        dst_addr: Ipv4Addr,
+        protocol: u8,
+        ttl: u8,
+        payload: Vec<u8>,
+    ) -> Self {
+        let total_length = 20 + payload.len() as u16; // 头部 20 字节 + 负载
+
+        Self {
+            version: 4,
+            ihl: 5, // 5 * 4 = 20 字节（无选项）
+            tos: 0,
+            total_length,
+            identification: 0, // 可以用随机数或计数器
+            flags: 0,
+            fragment_offset: 0,
+            ttl,
+            protocol,
+            checksum: 0, // 稍后计算
+            src_addr,
+            dst_addr,
+            payload,
+        }
+    }
+
+    /// 序列化为字节数组
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(20 + self.payload.len());
+
+        // 第 1 行：版本(4bit) + IHL(4bit) + TOS(8bit) + 总长度(16bit)
+        bytes.push((self.version << 4) | self.ihl);
+        bytes.push(self.tos);
+        bytes.extend_from_slice(&self.total_length.to_be_bytes());
+
+        // 第 2 行：标识(16bit) + 标志(3bit) + 片偏移(13bit)
+        bytes.extend_from_slice(&self.identification.to_be_bytes());
+        let flags_offset = ((self.flags as u16) << 13) | self.fragment_offset;
+        bytes.extend_from_slice(&flags_offset.to_be_bytes());
+
+        // 第 3 行：TTL(8bit) + 协议(8bit) + 校验和(16bit)
+        bytes.push(self.ttl);
+        bytes.push(self.protocol);
+        bytes.extend_from_slice(&[0, 0]); // 校验和占位
+
+        // 第 4-5 行：源 IP 和目标 IP
+        bytes.extend_from_slice(&self.src_addr.octets());
+        bytes.extend_from_slice(&self.dst_addr.octets());
+
+        // 计算校验和（只计算头部 20 字节）
+        let checksum = Self::calculate_ip_checksum(&bytes[..20]);
+        bytes[10..12].copy_from_slice(&checksum.to_be_bytes());
+
+        // 添加负载
+        bytes.extend_from_slice(&self.payload);
+
+        bytes
+    }
+
+    /// 计算 IP 校验和
+    fn calculate_ip_checksum(header: &[u8]) -> u16 {
+        let mut sum: u32 = 0;
+
+        for chunk in header.chunks(2) {
+            let word = if chunk.len() == 2 {
+                u16::from_be_bytes([chunk[0], chunk[1]]) as u32
+            } else {
+                (chunk[0] as u32) << 8
+            };
+            sum += word;
+        }
+
+        while sum >> 16 != 0 {
+            sum = (sum & 0xFFFF) + (sum >> 16);
+        }
+
+        !sum as u16
     }
 }
