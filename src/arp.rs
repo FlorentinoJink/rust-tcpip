@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::time::{Duration, Instant};
 
-const ARP_PACKET_LEN: usize = 28;
+const ARP_PACKET_MIN_LEN: usize = 28;
 
 pub type MacAddr = [u8; 6];
 
@@ -137,7 +137,7 @@ pub struct ArpPacket {
 impl ArpPacket {
     // 解析Arp请求
     pub fn parse(data: &[u8]) -> Result<Self> {
-        if data.len() < ARP_PACKET_LEN {
+        if data.len() < ARP_PACKET_MIN_LEN {
             return Err(StackError::InvalidPacket(String::from(
                 "ARP packet too short",
             )));
@@ -201,7 +201,7 @@ impl ArpPacket {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(ARP_PACKET_LEN);
+        let mut bytes = Vec::with_capacity(ARP_PACKET_MIN_LEN);
         bytes.extend_from_slice(&self.hardware_type.to_be_bytes());
         bytes.extend_from_slice(&self.protocol_type.to_be_bytes());
         bytes.push(self.hardware_len);

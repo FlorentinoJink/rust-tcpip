@@ -4,7 +4,7 @@
 
 use crate::error::{Result, StackError};
 
-const ICMP_PACKET_LEN: usize = 8;
+const ICMP_PACKET_MIN_LEN: usize = 8;
 
 /// ICMP 数据包结构
 #[derive(Debug)]
@@ -48,7 +48,7 @@ impl IcmpType {
 
 impl IcmpPacket {
     pub fn parse(data: &[u8]) -> Result<Self> {
-        if data.len() < ICMP_PACKET_LEN {
+        if data.len() < ICMP_PACKET_MIN_LEN {
             return Err(StackError::InvalidPacket(String::from(
                 "Icmp packet too short",
             )));

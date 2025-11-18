@@ -3,6 +3,7 @@ use rust_tcpip::device::*;
 use rust_tcpip::ethernet::{EtherType, EthernetFrame, FramePayload};
 use rust_tcpip::icmp::{IcmpPacket, IcmpType};
 use rust_tcpip::ip::Ipv4Packet;
+use rust_tcpip::udp::UdpDatagram;
 use std::net::Ipv4Addr;
 use tracing::info;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -52,6 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ipv4.dst_addr.to_string()
                 );
                 info!("IP protocol: {}", ipv4.protocol);
+                // icmp protocol 1
                 if ipv4.protocol == 1 {
                     info!("Received ICMP packet, parsing...");
                     let icmp = IcmpPacket::parse(&ipv4.payload)?;
@@ -78,6 +80,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         device.send(&eth_frame.to_bytes())?;
                         info!("Sending ping reply");
                     }
+                }
+                // udp protocol 17
+                if ipv4.protocol == 17 {
+                    info!("Received UDP packet, parsing...");
+                    let udp = UdpDatagram::parse(&ipv4.payload)?;
+                    info!(
+                        "Udp from {}:{} to {}:{}, length: {}",
+                        ipv4.src_addr, udp.src_port, ipv4.dst_addr, udp.dst_port, udp.length
+                    );
+                    info!("Udp payload hex: {:02x?}", udp.payload);
+                    let payload_str = String::from_utf8_lossy(&udp.payload);
+                    info!("Udp payload str: {}", payload_str);
                 }
             }
             _ => {
