@@ -46,7 +46,7 @@ impl UdpDatagram {
         src_addr: Ipv4Addr,
         dst_addr: Ipv4Addr,
     ) -> Self {
-        let length = payload.len() as u16;
+        let length = (8 + payload.len()) as u16; // UDP 头部 8 字节 + 数据
         let mut datagram = Self {
             src_port,
             dst_port,
@@ -58,6 +58,29 @@ impl UdpDatagram {
         datagram.checksum = Self::calculate_udp_checksum(&datagram, src_addr, dst_addr);
         datagram
     }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.src_port.to_be_bytes());
+        bytes.extend_from_slice(&self.dst_port.to_be_bytes());
+        bytes.extend_from_slice(&self.length.to_be_bytes());
+        bytes.extend_from_slice(&self.checksum.to_be_bytes());
+        bytes.extend_from_slice(&self.payload);
+        bytes
+    }
+
+    pub fn build_echo(request: &UdpDatagram, src_addr: Ipv4Addr, dst_addr: Ipv4Addr) -> Self {
+        let mut echo = Self {
+            src_port: request.dst_port,
+            dst_port: request.src_port,
+            length: request.length,
+            checksum: 0,
+            payload: request.payload.clone(),
+        };
+        echo.checksum = Self::calculate_udp_checksum(&echo, src_addr, dst_addr);
+        echo
+    }
+
     fn calculate_udp_checksum(
         datagram: &UdpDatagram,
         src_addr: Ipv4Addr,

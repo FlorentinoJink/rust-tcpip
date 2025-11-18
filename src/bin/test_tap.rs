@@ -92,6 +92,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     info!("Udp payload hex: {:02x?}", udp.payload);
                     let payload_str = String::from_utf8_lossy(&udp.payload);
                     info!("Udp payload str: {}", payload_str);
+
+                    let udp_echo = UdpDatagram::build_echo(&udp, ipv4.src_addr, ipv4.dst_addr);
+                    let udp_echo_bytes = udp_echo.to_bytes();
+
+                    let udp_reply = Ipv4Packet::build(
+                        ipv4.dst_addr,
+                        ipv4.src_addr,
+                        ipv4.protocol,
+                        0,
+                        udp_echo_bytes,
+                    );
+                    let ipv4_bytes = udp_reply.to_bytes();
+
+                    let eth_frame = EthernetFrame::build(
+                        ethernet_frame.src_mac,
+                        ethernet_frame.dst_mac,
+                        EtherType::to_u16(EtherType::IPv4),
+                        ipv4_bytes,
+                    );
+                    device.send(&eth_frame.to_bytes())?;
+                    info!("Sending udp echo");
                 }
             }
             _ => {
